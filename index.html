@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Main Cookie & Data Controller</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        h1 { color: #333; margin-bottom: 20px; }
+        .site-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+        .site-item:last-child { border-bottom: none; }
+        input[type="checkbox"] {
+            margin-right: 15px;
+            transform: scale(1.2);
+        }
+        label { font-size: 16px; font-weight: 500; color: #495057; flex-grow: 1; }
+        .controls { margin-top: 25px; display: flex; gap: 15px; }
+        button {
+            padding: 12px 24px;
+            font-size: 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .btn-clear { background-color: #DC3545; color: white; }
+        .btn-clear:hover { background-color: #bd2130; }
+        .btn-select { background-color: #6C757D; color: white; }
+        .btn-select:hover { background-color: #5a6268; }
+        #status-log {
+            margin-top: 25px;
+            padding: 15px;
+            background: #e9ecef;
+            border-radius: 4px;
+            font-family: monospace;
+            max-height: 150px;
+            overflow-y: auto;
+            font-size: 13px;
+        }
+        /* Hidden iframe container used for cross-origin task execution */
+        #iframe-bridge-container { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Main Site Dashboard</h1>
+    <p>Select target sites to purge cookies and stored HTML configurations:</p>
+    
+    <div id="sites-list">
+        <div class="site-item">
+            <input type="checkbox" id="site1" value="https://site1.com/target.html">
+            <label for="site1">Site 1 (site1.com)</label>
+        </div>
+        <div class="site-item">
+            <input type="checkbox" id="site2" value="https://site2.com/target.html">
+            <label for="site2">Site 2 (site2.com)</label>
+        </div>
+        <div class="site-item">
+            <input type="checkbox" id="site3" value="https://site3.com/target.html">
+            <label for="site3">Site 3 (site3.com)</label>
+        </div>
+        </div>
+
+    <div class="controls">
+        <button class="btn-select" id="toggle-all-btn">Select/Deselect All</button>
+        <button class="btn-clear" id="clear-selected-btn">Clear Selected Sites</button>
+    </div>
+
+    <h3>Operation Status Log</h3>
+    <div id="status-log">System idle...</div>
+</div>
+
+<div id="iframe-bridge-container"></div>
+
+<script>
+    const iframeContainer = document.getElementById('iframe-bridge-container');
+    const statusLog = document.getElementById('status-log');
+    const clearBtn = document.getElementById('clear-selected-btn');
+    const toggleBtn = document.getElementById('toggle-all-btn');
+    
+    let allSelected = false;
+
+    function log(message) {
+        const timestamp = new Date().toLocaleTimeString();
+        statusLog.innerHTML += `<br>[${timestamp}] ${message}`;
+        statusLog.scrollTop = statusLog.scrollHeight;
+    }
+
+    // Toggle All Checkboxes
+    toggleBtn.addEventListener('click', () => {
+        const checkboxes = document.querySelectorAll('#sites-list input[type="checkbox"]');
+        allSelected = !allSelected;
+        checkboxes.forEach(cb => cb.checked = allSelected);
+        log(allSelected ? "Selected all sites." : "Deselected all sites.");
+    });
+
+    // Execute Clear Action across multiple domains
+    clearBtn.addEventListener('click', () => {
+        const selectedCheckboxes = document.querySelectorAll('#sites-list input[type="checkbox"]:checked');
+        
+        if (selectedCheckboxes.length === 0) {
+            log("Warning: No sites selected.");
+            return;
+        }
+
+        log(`Starting purge sequence for ${selectedCheckboxes.length} site(s)...`);
+
+        selectedCheckboxes.forEach(checkbox => {
+            const targetUrl = checkbox.value;
+            log(`Opening secure channel to: ${targetUrl}`);
+
+            // 1. Create a temporary hidden iframe for the cross-domain script execution
+            const iframe = document.createElement('iframe');
+            iframe.src = targetUrl;
+            iframeContainer.appendChild(iframe);
+
+            // 2. Wait for the iframe to finish loading its DOM environment
+            iframe.onload = () => {
+                log(`Channel established. Sending purge payload to ${targetUrl}`);
+                
+                // 3. Post Message across origins safely
+                iframe.contentWindow.postMessage('CLEAR_DATA', targetUrl);
+                
+                // 4. Cleanup the iframe element after giving execution time window
+                setTimeout(() => {
+                    iframe.remove();
+                    log(`Closed channel for ${targetUrl}`);
+                }, 2000);
+            };
+        });
+    });
+
+    // Global listener to receive confirmation messages back from target sites
+    window.addEventListener('message', (event) => {
+        if (event.data === 'DATA_CLEARED') {
+            log(`Success: Data cleared successfully on origin [${event.origin}]`);
+        }
+    });
+</script>
+</body>
+</html>
+
