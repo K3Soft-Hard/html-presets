@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Target Site Component</title>
+    <style>
+        /* Styles for the initial prompt UI */
+        #prompt-container {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 600px;
+            margin: 50px auto;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            margin-top: 10px;
+            margin-bottom: 10px;
+            font-family: monospace;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="prompt-container" style="display: none;">
+        <h2>First Time Setup</h2>
+        <p>Please enter the custom HTML you want this site to display permanently:</p>
+        <textarea id="html-input" placeholder="<h1>Hello World</h1><p>My custom content.</p>"></textarea>
+        <button id="save-btn">Save and Render HTML</button>
+    </div>
+
+    <div id="display-container"></div>
+
+    <script>
+        const STORAGE_KEY = 'custom_site_html';
+        const promptContainer = document.getElementById('prompt-container');
+        const displayContainer = document.getElementById('display-container');
+        const htmlInput = document.getElementById('html-input');
+        const saveBtn = document.getElementById('save-btn');
+
+        // Render function to apply the saved or inputted HTML safely
+        function renderCustomHTML(htmlContent) {
+            promptContainer.style.display = 'none';
+            displayContainer.innerHTML = htmlContent;
+            
+            // Execute scripts inside the injected HTML if any exist
+            const scripts = displayContainer.querySelectorAll('script');
+            scripts.forEach(oldScript => {
+                const newScript = document.createElement('script');
+                Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+                newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+                oldScript.parentNode.replaceChild(newScript, oldScript);
+            });
+        }
+
+        // Check if data already exists on load
+        const savedHTML = localStorage.getItem(STORAGE_KEY);
+        if (savedHTML !== null) {
+            renderCustomHTML(savedHTML);
+        } else {
+            promptContainer.style.display = 'block';
+        }
+
+        // Save action when user inputs HTML for the first time
+        saveBtn.addEventListener('click', () => {
+            const rawHTML = htmlInput.value;
+            localStorage.setItem(STORAGE_KEY, rawHTML);
+            // Also set a cookie to satisfy your explicit cookie requirement
+            document.cookie = "site_initialized=true; max-age=31536000; path=/; SameSite=None; Secure";
+            renderCustomHTML(rawHTML);
+        });
+
+        // CROSS-ORIGIN LISTENER: Listen for messages from the Main Control Site
+        window.addEventListener('message', (event) => {
+            // SECURITY NOTE: In production, change '*' to your actual Main Site origin
+            // if (event.origin !== 'https://main-control-site.com') return;
+
+            if (event.data === 'CLEAR_DATA') {
+                // Clear LocalStorage
+                localStorage.removeItem(STORAGE_KEY);
+                
+                // Clear Cookies
+                document.cookie = "site_initialized=; max-age=0; path=/; SameSite=None; Secure";
+                
+                // Inform the parent/sender that clearance was successful
+                event.source.postMessage('DATA_CLEARED', event.origin);
+                
+                // Reload the page to bring back the original prompt UI
+                window.location.reload();
+            }
+        });
+    </script>
+</body>
+</html>
+
